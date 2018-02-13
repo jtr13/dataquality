@@ -1,0 +1,186 @@
+---
+title: "Missing Data"
+output: 
+  slidy_presentation:
+    css: styles5293.css
+    fig_height: 4
+    fig_width: 6
+    df_print: kable
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, cache = TRUE,
+                      warning = FALSE, message = FALSE,
+                      eval = TRUE)
+```
+
+```{r, eval = TRUE}
+library(tidyverse)
+library(viridis)
+```
+
+
+## New York Snowfall data
+
+Source: https://www.ncdc.noaa.gov/snow-and-ice/daily-snow/NY/snowfall/20170201
+
+Accessed: 2017-10-26
+
+<img src = "Screenshot 2017-10-26 18.45.11.png" width = "700" />
+
+```{r, eval = TRUE}
+library(tidyverse)
+
+theme_dotplot <- theme_bw(16) +
+  theme(axis.ticks.y = element_blank(),
+        panel.grid.major.x = element_blank(),
+        panel.grid.major.y = element_line(size = 0.5),
+        panel.grid.minor.x = element_blank())
+
+# https://www.ncdc.noaa.gov/snow-and-ice/daily-snow/
+# Accessed 2017-10-26
+# Screenshot 2017-10-26 18.45.11.png
+snow <- read.csv("NY-snowfall-201702.csv",
+                 header = TRUE, skip = 1,
+                 na.strings = "M", check.names = FALSE,
+                 stringsAsFactors = FALSE)
+
+# replace "T" (trace) with .05
+snow2 <- snow %>% select(`Feb 1`:`Feb 28`)
+snow2 <- purrr::map_df(snow2, 
+         ~stringr::str_replace_all(.x, "T", ".005") %>%
+          as.numeric())
+```
+
+```{r}
+extracat::visna(snow, sort = "b")
+```
+
+
+```{r, eval = TRUE}
+# tidy snow data frame, add missing column
+tidysnow <- snow %>% 
+  select(`Station Name`, County, `Feb 1`:`Feb 28`) %>%
+  gather(key, value, -`Station Name`, -County) %>%
+  mutate(missing = ifelse(is.na(value), "yes", "no"))
+```
+
+## Number missing by county mean
+```{r, fig.height = 6}
+na_by_station <- tidysnow %>% 
+  group_by(County, `Station Name`) %>% 
+  summarize(count = sum(is.na(value))) %>% 
+  mutate(type = "station")
+
+mean_na_by_county <- na_by_station %>% 
+  group_by(County) %>%
+  summarize(count = mean(count)) %>% 
+  add_column(`Station Name` = "mean", .before = "count") %>% 
+  mutate(type = "mean")
+
+combined_na <- bind_rows(na_by_station, mean_na_by_county)
+
+ggplot(combined_na, aes(x = count, 
+                        y = reorder(County, count, mean), 
+                        color = type)) + geom_point() +
+  xlab("Number of missing values (out of 28)") +
+  theme_dotplot + 
+  theme(axis.text.y = element_text(size = rel(.5)))
+```
+
+
+## Number missing by day of month
+```{r}
+# add a zero to single digit dates so they'll sort
+# correctly (Feb 1 becomes Feb 01) 
+# 
+tidysnow$key <- ifelse(nchar(tidysnow$key) == 5,
+                       gsub(" ", " 0", tidysnow$key),
+                       tidysnow$key)
+
+# change dates to YYYY-MM-DD format
+tidysnow$key <- gsub("Feb ", "2017-02-", tidysnow$key)
+
+# calculate number missing by day
+missing <- tidysnow %>% 
+    group_by(key) %>% 
+    summarise(sum.na = sum(is.na(value)))
+
+# plot number missing by day
+ggplot(missing, aes(x = 1:28, y = sum.na)) +
+  geom_col(color = "blue", fill = "lightblue") +
+  scale_x_continuous(breaks = 1:28, labels = missing$key) +
+  ggtitle("Number of missing values by day") +
+  xlab("") +
+  ylab("Number of missing station values (out of 349)") +
+  theme(axis.text.x = element_text(angle = 90))
+```
+
+##
+```{r}
+# add day of week info
+missing <- missing %>% 
+    mutate(dayofweek = weekdays(as.Date(key),
+                                abbreviate = FALSE))
+# correct day order
+daysinorder <- c("Monday", "Tuesday", "Wednesday",
+                 "Thursday", "Friday", "Saturday",
+                 "Sunday")
+
+# reorder dayofweek
+missing$dayofweek <- factor(missing$dayofweek,
+                            levels = daysinorder)
+# choose colors
+daycolors <- c(rep("#cbc9e2", 5), rep("#2b8cbe", 2))
+
+# plot missing values by day, weekday/weekend colors
+ggplot(missing, aes(x = key, y = sum.na, fill = dayofweek)) +
+    geom_col() +
+    ggtitle("Number of missing values by day") +
+    scale_fill_manual(values = daycolors) +
+    xlab("") +
+  ylab("Number of missing station values (out of 349)") +
+    theme_classic() +
+    theme(axis.text.x = element_text(angle = 90))
+```
+
+
+## Number of missing values per day by total snowfall
+```{r}
+# calculate total snowfall by day
+totalsnow <- tidysnow %>% 
+    filter(!is.na(value) & (value != "T")) %>% 
+    mutate(value = as.numeric(value)) %>% 
+    group_by(key) %>% 
+    summarise(total = sum(value))
+
+# calculate average snowfall per station by day
+infodf <- right_join(missing, totalsnow, by = "key") 
+
+# scatterplot of number missing by average snowfall
+# What is the pattern?
+
+g <- ggplot(infodf, aes(x = total, y = sum.na)) +
+    geom_point() +
+  xlab("Total statewide snowfall (in inches)") +
+  ylab("Number of missing station values (out of 349)")
+g
+```
+
+## no gridlines
+```{r}
+g + theme_classic()
+```
+
+
+## Number of missing values per day by total snowfall
+```{r}
+ggplot(infodf, aes(x = total, y = sum.na)) +
+    geom_point() +
+  geom_text(aes(label = substr(key, 9, 10)), nudge_x = 35,
+            size = 3) +
+  xlab("Total statewide snowfall (in inches)") +
+  ylab("Number of missing station values (out of 349)") 
+```
+
+
