@@ -1,11 +1,6 @@
 ---
 title: "Missing Data Lab"
-output:
-  slidy_presentation:
-    css: styles5293.css
-    df_print: kable
-    fig_height: 4
-    fig_width: 6
+output: github_document
 ---
 
 ```{r setup, include=FALSE}
