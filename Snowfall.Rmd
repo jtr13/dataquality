@@ -9,18 +9,37 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE, cache = TRUE,
+knitr::opts_chunk$set(echo = TRUE, cache = TRUE,
                       warning = FALSE, message = FALSE,
                       eval = TRUE)
 ```
 
 ```{r, eval = TRUE}
 library(tidyverse)
-library(viridis)
 ```
 
+# Methods of getting data
 
-## New York Snowfall data
+> - Getting data from an API (`httr`): <br> Webinar:  https://www.rstudio.com/resources/webinars/extracting-data-from-the-web-part-1/ <br> Slides: https://github.com/rstudio/webinars/blob/master/31-Web-APIs/01-APIs.pdf
+
+> - Read files directly from web site
+
+> - Download files from web site (either manually or with a script)
+
+> - Scrape web pages (`rvest`): <br> Webinar: https://www.rstudio.com/resources/webinars/extracting-data-from-the-web-part-2/ <br> Slides: https://github.com/rstudio/webinars/blob/master/32-Web-Scraping/02-Web-Scraping.pdf
+
+> - Copy and paste
+
+> - *Keep a record of what you did.*
+
+
+# Snowfall
+
+I need to know how much snow fell *per day* in New York State in February 2017, on a county or more detailed level. I know some government agency measures and reports snowfall and puts the data online. 
+
+# Snowfall
+
+I need to know how much snow fell *per day* in New York State in February 2017, on a county or more detailed level. I know some government agency measures and reports snowfall and puts the data online. 
 
 Source: https://www.ncdc.noaa.gov/snow-and-ice/daily-snow/NY/snowfall/20170201
 
@@ -31,12 +50,6 @@ Accessed: 2017-10-26
 ```{r, eval = TRUE}
 library(tidyverse)
 
-theme_dotplot <- theme_bw(16) +
-  theme(axis.ticks.y = element_blank(),
-        panel.grid.major.x = element_blank(),
-        panel.grid.major.y = element_line(size = 0.5),
-        panel.grid.minor.x = element_blank())
-
 # https://www.ncdc.noaa.gov/snow-and-ice/daily-snow/
 # Accessed 2017-10-26
 # Screenshot 2017-10-26 18.45.11.png
@@ -45,28 +58,58 @@ snow <- read.csv("NY-snowfall-201702.csv",
                  na.strings = "M", check.names = FALSE,
                  stringsAsFactors = FALSE)
 
-# replace "T" (trace) with .05
-snow2 <- snow %>% select(`Feb 1`:`Feb 28`)
-snow2 <- purrr::map_df(snow2, 
-         ~stringr::str_replace_all(.x, "T", ".005") %>%
-          as.numeric())
+# replace "T" (trace) with .005
+snow2 <- snow %>% select(`Feb 1`:`Feb 28`) %>% 
+  mutate_all(funs(ifelse(. == "T", .005, .) %>% as.numeric()))
 ```
+
+# 
+
+```{r}
+extracat::visna(snow, sort = "r")
+```
+
+# 
+
+```{r}
+extracat::visna(snow, sort = "c")
+```
+
+# 
 
 ```{r}
 extracat::visna(snow, sort = "b")
 ```
 
+#
+```{r, fig.height = 30, fig.width = 10}
+# tidy snow data frame, add missing (yes or no) column
 
-```{r, eval = TRUE}
-# tidy snow data frame, add missing column
 tidysnow <- snow %>% 
   select(`Station Name`, County, `Feb 1`:`Feb 28`) %>%
   gather(key, value, -`Station Name`, -County) %>%
   mutate(missing = ifelse(is.na(value), "yes", "no"))
+
+# add a zero to single digit dates so they'll sort
+# correctly (Feb 1 becomes Feb 01) 
+# 
+tidysnow$key <- ifelse(nchar(tidysnow$key) == 5,
+                       gsub(" ", " 0", tidysnow$key),
+                       tidysnow$key)
+
+
+ggplot(tidysnow, aes(x = key, y = `Station Name`, fill = missing)) + 
+  geom_raster() + scale_fill_manual(values = c("white", "red")) + scale_x_discrete("February 2017", labels = 1:28) + theme_bw()
 ```
 
-## Number missing by county mean
+# Number missing by county mean
 ```{r, fig.height = 6}
+theme_dotplot <- theme_bw(16) +
+  theme(axis.ticks.y = element_blank(),
+        panel.grid.major.x = element_blank(),
+        panel.grid.major.y = element_line(size = 0.5),
+        panel.grid.minor.x = element_blank())
+
 na_by_station <- tidysnow %>% 
   group_by(County, `Station Name`) %>% 
   summarize(count = sum(is.na(value))) %>% 
@@ -89,15 +132,8 @@ ggplot(combined_na, aes(x = count,
 ```
 
 
-## Number missing by day of month
+# Number missing by day of month
 ```{r}
-# add a zero to single digit dates so they'll sort
-# correctly (Feb 1 becomes Feb 01) 
-# 
-tidysnow$key <- ifelse(nchar(tidysnow$key) == 5,
-                       gsub(" ", " 0", tidysnow$key),
-                       tidysnow$key)
-
 # change dates to YYYY-MM-DD format
 tidysnow$key <- gsub("Feb ", "2017-02-", tidysnow$key)
 
@@ -116,7 +152,7 @@ ggplot(missing, aes(x = 1:28, y = sum.na)) +
   theme(axis.text.x = element_text(angle = 90))
 ```
 
-##
+#
 ```{r}
 # add day of week info
 missing <- missing %>% 
@@ -145,42 +181,41 @@ ggplot(missing, aes(x = key, y = sum.na, fill = dayofweek)) +
 ```
 
 
-## Number of missing values per day by total snowfall
+# Number of missing values per day by total snowfall
 ```{r}
-# calculate total snowfall by day
-totalsnow <- tidysnow %>% 
+# calculate mean snowfall by day
+meansnow <- tidysnow %>% 
     filter(!is.na(value) & (value != "T")) %>% 
     mutate(value = as.numeric(value)) %>% 
     group_by(key) %>% 
-    summarise(total = sum(value))
+    summarise(avg = mean(value))
 
 # calculate average snowfall per station by day
-infodf <- right_join(missing, totalsnow, by = "key") 
+infodf <- right_join(missing, meansnow, by = "key") 
 
 # scatterplot of number missing by average snowfall
 # What is the pattern?
 
-g <- ggplot(infodf, aes(x = total, y = sum.na)) +
+g <- ggplot(infodf, aes(x = avg, y = sum.na)) +
     geom_point() +
-  xlab("Total statewide snowfall (in inches)") +
+  xlab("Mean statewide snowfall (in inches)") +
   ylab("Number of missing station values (out of 349)")
 g
 ```
 
-## no gridlines
+# no gridlines
 ```{r}
 g + theme_classic()
 ```
 
 
-## Number of missing values per day by total snowfall
+# Number of missing values per day by total snowfall
 ```{r}
-ggplot(infodf, aes(x = total, y = sum.na)) +
+ggplot(infodf, aes(x = avg, y = sum.na)) +
     geom_point() +
-  geom_text(aes(label = substr(key, 9, 10)), nudge_x = 35,
-            size = 3) +
-  xlab("Total statewide snowfall (in inches)") +
+  xlab("Mean statewide snowfall (in inches)") +
   ylab("Number of missing station values (out of 349)") 
 ```
+
 
 

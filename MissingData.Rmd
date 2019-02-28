@@ -1,0 +1,335 @@
+---
+title: "Missing Data"
+output: 
+  slidy_presentation:
+    css: styles5293.css
+    df_print: kable
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, 
+                      warning = FALSE,
+                      cache = TRUE, message = FALSE)
+```
+
+
+# Looking for patterns in missing data
+
+## row / column patterns
+
+> - Do all variables have the same percentage of values missing? 
+
+> - Are there row patterns to the missing values?
+
+# Create a dataset with missing values
+
+```{r}
+# Add NAs to mtcars dataset
+set.seed(5702)
+mycars <- mtcars
+mycars[,"gear"] <- NA
+mycars[10:20, 3:5] <- NA
+for (i in 1:10) mycars[sample(32,1), sample(11,1)] <- NA
+```
+
+# Row / column missing patterns
+
+## Missing values by column
+
+```{r, echo = TRUE}
+colSums(is.na(mycars)) %>%
+  sort(decreasing = TRUE)
+```
+
+# Row / column missing patterns
+
+## Missing values by row
+
+```{r, echo = TRUE}
+rowSums(is.na(mycars)) %>%
+  sort(decreasing = TRUE)
+```
+
+
+# Row / column missing patterns
+
+## heatmap
+
+`geom_tile()`
+
+```{r}
+library(tidyverse)
+
+tidycars <- mycars %>% 
+    rownames_to_column("id") %>% 
+    gather(key, value, -id) %>% 
+    mutate(missing = ifelse(is.na(value), "yes", "no"))
+```
+
+```{r}
+ggplot(tidycars, aes(x = key, y = fct_rev(id), fill = missing)) +
+  geom_tile(color = "white") + 
+  ggtitle("mtcars with NAs added") +
+  scale_fill_viridis_d() + # discrete scale
+  theme_bw()
+```
+
+
+# Row / column missing patterns
+
+## heatmap
+
+`mi::missing_data.frame()` 
+
+```{r, echo = TRUE, results = FALSE}
+library(mi)
+x <- missing_data.frame(mycars)
+```
+
+```{r, echo = TRUE}
+image(x)
+```
+
+
+(gear not shown since all are missing)
+
+# Row / column missing patterns
+
+## Missing values by variable
+
+`geom_tile()`
+
+```{r}
+ggplot(tidycars, aes(x = key, y = fct_rev(id), fill = value)) +
+  geom_tile(color = "white") + 
+  scale_fill_gradient(low = "grey80", high = "red", na.value = "black") + theme_bw()
+```
+
+# Row / column missing patterns
+
+## Missing values by variable
+
+`geom_tile()` with standardized variables
+
+```{r}
+tidycars <- tidycars %>% group_by(key) %>% 
+  mutate(Std = (value-mean(value, na.rm = TRUE))/sd(value, na.rm = TRUE)) %>% ungroup()
+
+ggplot(tidycars, aes(x = key, y = fct_rev(id), fill = Std)) +
+  geom_tile(color = "white") + 
+  scale_fill_gradient2(low = "blue", mid = "white", high ="yellow", na.value = "black") + theme_bw()
+```
+
+# Row / column missing patterns
+
+## Missing values by variable
+
+reordered by number of missing
+
+
+```{r}
+# convert missing to numeric so it can be summed up
+tidycars <- tidycars %>% 
+  mutate(missing2 = ifelse(missing == "yes", 1, 0))
+
+ggplot(tidycars, aes(x = fct_reorder(key, -missing2, sum), y = fct_reorder(id, -missing2, sum), fill = Std)) +
+  geom_tile(color = "white") + 
+  scale_fill_gradient2(low = "blue", mid = "white", high ="yellow", na.value = "black") + theme_bw()
+```
+
+
+# Row / column missing patterns
+
+### Missing values by variable
+
+<img src = "missingpatternskey.png" width = "600"></img>
+
+# Row / column missing patterns
+
+### Missing values by variable
+
+missing patterns
+
+```{r, echo = TRUE}
+x <- mi::missing_data.frame(mycars)
+class(x)
+x@patterns
+levels(x@patterns)
+summary(x@patterns)
+```
+
+# Row / column missing patterns
+
+### Missing values by variable
+
+missing patterns
+
+(repeated patterns are reduced to one row)
+
+```{r, fig.height = 3}
+library(extracat)
+visna(mycars)
+```
+
+# visna() w/ row sort
+
+Sorted by most common to least common missing *pattern* (top to bottom)
+
+```{r, fig.height = 3}
+visna(mycars, sort = "r")
+```
+
+# visna() w/ column sort
+
+Sorted by *variable* with the most to least missing values (left to right)
+
+```{r, fig.height = 3}
+visna(mycars, sort = "c")
+```
+
+# visna() w/ row & column sort
+
+
+```{r, fig.height = 3}
+visna(mycars, sort = "b")
+```
+
+
+# NYC School data
+```{r}
+df <- read.csv("SAT2010.csv", na.strings = "s",
+               check.names = FALSE)
+head(df)
+dim(df)
+```
+
+
+# NYC School data
+```{r, fig.height = 3}
+visna(df)
+```
+
+# Looking for patterns in missing data
+
+## value patterns
+
+> - Are missing patterns correlated with values of another variable?
+
+> - Are certain value ranges more likely to be missing? 
+
+> - Or are there no patterns at all? 
+
+# NYC School data
+
+Does the proportion of schools with missing data vary by borough?
+
+Data: `SAT2010.csv`
+
+# NYC School data
+
+Does the proportion of schools with missing data vary by borough?
+
+Data: `SAT2010.csv`
+
+
+```{r}
+head(df)
+```
+
+# Missing by borough
+
+```{r}
+df <- df %>% mutate(Borough = str_sub(DBN, 3, 3))
+percent_missing <- df %>% group_by(Borough) %>% 
+  summarize(num_schools = n(), num_na = sum(is.na(`Writing Mean`))) %>% 
+  mutate(percent_na = round(num_na/num_schools, 2)) %>% 
+  arrange(-percent_na)
+percent_missing
+```
+
+
+# Missing by borough
+
+K, Q, M, X, R
+
+Manhattan
+
+Brooklyn
+
+Queens
+
+The Bronx
+
+Staten Island
+
+# Missing by borough
+
+K, Q, M, X, R
+
+Manhattan = New York County
+
+Brooklyn  = Kings County
+
+Queens = Queens County
+
+The Bronx = Bronx County
+
+Staten Island = Richmond County
+
+
+# Missing by borough
+
+K, Q, M, X, R
+
+<span style="color:red">M</span>anhattan = New York County = "M"
+
+Brooklyn = <span style="color:red">K</span>ings County = "K"
+
+<span style="color:red">Q</span>ueens = <span style="color:red">Q</span>ueens County = "Q"
+
+The Bron<span style="color:red">x</span> = Bron<span style="color:red">x</span> County = "X"
+
+Staten Island = <span style="color:red">R</span>ichmond County = "R"
+
+# Missing by borough
+
+```{r}
+percent_missing <- percent_missing %>%
+  mutate(BoroughName = fct_recode(Borough,
+                                      Manhattan = "M",
+                                      Brooklyn = "K", 
+                                      Queens = "Q", 
+                                      `The Bronx` = "X",
+                                      `Staten Island` = "R"))
+percent_missing
+
+```
+
+# Missing by borough
+
+```{r}
+df <- df %>% 
+  mutate(BoroughName = fct_recode(Borough, 
+                                      Manhattan = "M",
+                                      Brooklyn = "K", 
+                                      Queens = "Q", 
+                                      `The Bronx` = "X",
+                                      `Staten Island` = "R"))
+
+dfsum <- df %>% group_by(BoroughName) %>% 
+  summarize(Reading = round(mean(`Critical Reading Mean`, na.rm = TRUE), 1), 
+            Math = round(mean(`Mathematics Mean`, na.rm = TRUE), 1),
+            Writing = round(mean(`Writing Mean`, na.rm = TRUE), 1)) %>%
+  left_join(percent_missing %>% select(BoroughName, percent_na), 
+            by = "BoroughName") %>% 
+  arrange(desc(percent_na))
+```
+
+# Missing by borough
+
+```{r}
+library(GGally)
+dfsum
+ggpairs(dfsum, columns = 2:5, aes(color = BoroughName))
+```
+
