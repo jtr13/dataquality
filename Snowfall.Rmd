@@ -53,15 +53,16 @@ library(tidyverse)
 # https://www.ncdc.noaa.gov/snow-and-ice/daily-snow/
 # Accessed 2017-10-26
 # Screenshot 2017-10-26 18.45.11.png
-snow <- read.csv("NY-snowfall-201702.csv",
-                 header = TRUE, skip = 1,
-                 na.strings = "M", check.names = FALSE,
-                 stringsAsFactors = FALSE)
+snow <- read_csv("NY-snowfall-201702.csv",
+                 skip = 1,
+                 na = "M")
 
 # replace "T" (trace) with .005
-snow2 <- snow %>% select(`Feb 1`:`Feb 28`) %>% 
-  mutate_all(funs(ifelse(. == "T", .005, .) %>% as.numeric()))
-```
+
+trace_replace <- function(x) as.numeric(ifelse(x == "T", .005, x))
+
+snow2 <- snow %>%
+  mutate_at(vars(`Feb 1`:`Feb 28`), trace_replace)
 
 # 
 
