@@ -1,30 +1,41 @@
 ---
 title: "Missing Data"
 output: 
+  html_document:
+    css: styles.css
   slidy_presentation:
-    css: styles5293.css
+    css: styles.css
+    fig_height: 4
+    fig_width: 6
     df_print: kable
+
+    
+knit: (function(inputFile, encoding) { 
+      rmarkdown::render(inputFile, encoding=encoding,
+      output_file=c("MissingDataCode.html",
+        "MissingDataSlides.html"),
+      output_format="all") })
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE, 
-                      warning = FALSE,
-                      cache = TRUE, message = FALSE)
-library(tidyverse)
+```{r, include = FALSE}
+codeversion <- knitr::is_html_output(excludes = "slidy")
+knitr::opts_chunk$set(warning = FALSE, message = FALSE,
+                      cache = TRUE,
+                      echo = codeversion)
+options(scipen = 999)
 ```
 
 
-# Looking for patterns in missing data
+# Row / column missing patterns
 
-## row / column patterns
+> - Do all rows / columns have the same percentage of missing values? 
 
-> - Do all variables have the same percentage of values missing? 
+> - Are there correlations between missing rows / columns? (If a value is missing in one column it is likely to be missing in another column.)
 
-> - Are there row patterns to the missing values?
+# Sample dataset with missing values
 
-# Create a dataset with missing values
-
-```{r}
+```{r, echo=TRUE}
+library(tidyverse)
 # Add NAs to mtcars dataset
 set.seed(5702)
 mycars <- mtcars
@@ -159,20 +170,17 @@ levels(x@patterns)
 summary(x@patterns)
 ```
 
-# Row / column missing patterns
-
-### Missing values by variable
-
-missing patterns
+# Aggregated missing patterns
 
 (repeated patterns are reduced to one row)
 
 ```{r, fig.height = 3}
+# note: extracat is no longer available
 library(extracat)
 visna(mycars)
 ```
 
-# visna() w/ row sort
+# Aggregated missing patterns
 
 Sorted by most common to least common missing *pattern* (top to bottom)
 
@@ -180,7 +188,7 @@ Sorted by most common to least common missing *pattern* (top to bottom)
 visna(mycars, sort = "r")
 ```
 
-# visna() w/ column sort
+# Aggregated missing patterns
 
 Sorted by *variable* with the most to least missing values (left to right)
 
@@ -188,8 +196,7 @@ Sorted by *variable* with the most to least missing values (left to right)
 visna(mycars, sort = "c")
 ```
 
-# visna() w/ row & column sort
-
+# Aggregated missing patterns
 
 ```{r, fig.height = 3}
 visna(mycars, sort = "b")
@@ -206,19 +213,20 @@ dim(df)
 
 
 # NYC School data
+
 ```{r, fig.height = 3}
 visna(df)
 ```
 
-# Looking for patterns in missing data
-
-## value patterns
+# Value patterns in missing data
 
 > - Are missing patterns correlated with values of another variable?
 
 > - Are certain value ranges more likely to be missing? 
 
 > - Or are there no patterns at all? 
+
+> - (An explanation may not be available within the dataset.)
 
 # NYC School data
 
@@ -361,21 +369,22 @@ trace_replace <- function(x) as.numeric(ifelse(x == "T", .005, x))
 snow2 <- snow %>%
   mutate_at(vars(`Feb 1`:`Feb 28`), trace_replace)
 
-# 
 
-```{r}
+# note: extracat is no longer available
 extracat::visna(snow, sort = "r")
 ```
 
 # 
 
 ```{r}
+# note: extracat is no longer available
 extracat::visna(snow, sort = "c")
 ```
 
 # 
 
 ```{r}
+# note: extracat is no longer available
 extracat::visna(snow, sort = "b")
 ```
 
