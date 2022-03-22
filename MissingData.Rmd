@@ -1,26 +1,25 @@
 ---
 title: "Missing Data"
 output: 
-  html_document:
-    css: styles.css
   slidy_presentation:
     css: styles.css
     fig_height: 4
     fig_width: 6
     df_print: kable
+  html_document:
+    css: styles.css
+
 
     
 knit: (function(inputFile, encoding) { 
       rmarkdown::render(inputFile, encoding=encoding,
-      output_file=c("MissingDataCode.html",
-        "MissingDataSlides.html"),
+      output_file=c("MissingDataSlides.html", "MissingDataCode.html"),
       output_format="all") })
 ---
 
 ```{r, include = FALSE}
 codeversion <- knitr::is_html_output(excludes = "slidy")
 knitr::opts_chunk$set(warning = FALSE, message = FALSE,
-                      cache = TRUE,
                       echo = codeversion)
 options(scipen = 999)
 ```
@@ -174,33 +173,25 @@ summary(x@patterns)
 
 (repeated patterns are reduced to one row)
 
-```{r, fig.height = 3}
-# note: extracat is no longer available
-library(extracat)
-visna(mycars)
+rows and columns sorted by number missing
+
+```{r, fig.height = 3, echo = TRUE}
+library(redav)
+plot_missing(mycars, percent = FALSE)
 ```
 
-# Aggregated missing patterns
 
-Sorted by most common to least common missing *pattern* (top to bottom)
+# Aggregated missing patterns (percent)
 
-```{r, fig.height = 3}
-visna(mycars, sort = "r")
+(repeated patterns are reduced to one row)
+
+rows and columns sorted by percent missing
+
+```{r, fig.height = 3, echo = TRUE}
+plot_missing(mycars)
 ```
 
-# Aggregated missing patterns
 
-Sorted by *variable* with the most to least missing values (left to right)
-
-```{r, fig.height = 3}
-visna(mycars, sort = "c")
-```
-
-# Aggregated missing patterns
-
-```{r, fig.height = 3}
-visna(mycars, sort = "b")
-```
 
 
 # NYC School data
@@ -215,7 +206,9 @@ dim(df)
 # NYC School data
 
 ```{r, fig.height = 3}
-visna(df)
+df2 <- df
+colnames(df2) <- substr(colnames(df2), 1, 8)
+plot_missing(df2)
 ```
 
 # Value patterns in missing data
@@ -352,7 +345,8 @@ Accessed: 2017-10-26
 
 <img src = "Screenshot 2017-10-26 18.45.11.png" width = "700" />
 
-```{r, eval = TRUE}
+#
+```{r, eval = TRUE, fig.width = 9}
 library(tidyverse)
 
 # https://www.ncdc.noaa.gov/snow-and-ice/daily-snow/
@@ -369,23 +363,7 @@ trace_replace <- function(x) as.numeric(ifelse(x == "T", .005, x))
 snow2 <- snow %>%
   mutate_at(vars(`Feb 1`:`Feb 28`), trace_replace)
 
-
-# note: extracat is no longer available
-extracat::visna(snow, sort = "r")
-```
-
-# 
-
-```{r}
-# note: extracat is no longer available
-extracat::visna(snow, sort = "c")
-```
-
-# 
-
-```{r}
-# note: extracat is no longer available
-extracat::visna(snow, sort = "b")
+plot_missing(snow)
 ```
 
 #
@@ -405,38 +383,10 @@ tidysnow$key <- ifelse(nchar(tidysnow$key) == 5,
                        tidysnow$key)
 
 
-ggplot(tidysnow, aes(x = key, y = `Station Name`, fill = missing)) + 
-  geom_raster() + scale_fill_manual(values = c("white", "red")) + scale_x_discrete("February 2017", labels = 1:28) + theme_bw()
+# ggplot(tidysnow, aes(x = key, y = `Station Name`, fill = missing)) + 
+#  geom_raster() + scale_fill_manual(values = c("white", "red")) + scale_x_discrete("February 2017", labels = 1:28) + theme_bw()
 ```
 
-# Number missing by county mean
-```{r, fig.height = 6}
-theme_dotplot <- theme_bw(16) +
-  theme(axis.ticks.y = element_blank(),
-        panel.grid.major.x = element_blank(),
-        panel.grid.major.y = element_line(size = 0.5),
-        panel.grid.minor.x = element_blank())
-
-na_by_station <- tidysnow %>% 
-  group_by(County, `Station Name`) %>% 
-  summarize(count = sum(is.na(value))) %>% 
-  mutate(type = "station")
-
-mean_na_by_county <- na_by_station %>% 
-  group_by(County) %>%
-  summarize(count = mean(count)) %>% 
-  add_column(`Station Name` = "mean", .before = "count") %>% 
-  mutate(type = "mean")
-
-combined_na <- bind_rows(na_by_station, mean_na_by_county)
-
-ggplot(combined_na, aes(x = count, 
-                        y = reorder(County, count, mean), 
-                        color = type)) + geom_point() +
-  xlab("Number of missing values (out of 28)") +
-  theme_dotplot + 
-  theme(axis.text.y = element_text(size = rel(.5)))
-```
 
 
 # Number missing by day of month
@@ -507,11 +457,6 @@ g <- ggplot(infodf, aes(x = avg, y = sum.na)) +
     geom_point() +
   xlab("Mean statewide snowfall (in inches)") +
   ylab("Number of missing station values (out of 349)")
-g
-```
-
-# no gridlines
-```{r}
 g + theme_classic()
 ```
 
