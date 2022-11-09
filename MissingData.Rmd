@@ -27,9 +27,19 @@ options(scipen = 999)
 
 # Row / column missing patterns
 
-> - Do all rows / columns have the same percentage of missing values? 
+* Do all rows / columns have the same percentage of missing values? 
 
-> - Are there correlations between missing rows / columns? (If a value is missing in one column it is likely to be missing in another column.)
+* Are there correlations between missing rows / columns? (If a value is missing in one column it is likely to be missing in another column.)
+
+![](images/rowcolumn.png)
+
+# Value patterns
+
+* Are particular values in one column associated with missing values in another?
+
+![](images/value.png){width=25%}
+
+
 
 # Sample dataset with missing values
 
